@@ -1,0 +1,15 @@
+[MASTER]
+load-plugins=perflint
+
+[MESSAGES CONTROL]
+# Keep all messages — we want to see everything for evaluation
+disable=
+
+[DESIGN]
+max-args=5
+max-locals=10
+max-branches=7
+max-nested-blocks=4
+
+[FORMAT]
+max-line-length=120

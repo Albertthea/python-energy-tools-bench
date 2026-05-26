@@ -1,0 +1,47 @@
+name: Green code analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Ruff — PERF + FURB
+        run: ruff check bad_code.py --select PERF,FURB
+        continue-on-error: true   # we EXPECT failures on bad_code.py
+
+      - name: Pylint + perflint
+        run: pylint bad_code.py --load-plugins perflint --rcfile config/.pylintrc
+        continue-on-error: true
+
+      - name: Radon — cyclomatic complexity
+        run: |
+          radon cc bad_code.py -s -a
+          radon mi bad_code.py -s
+          radon hal bad_code.py
+        continue-on-error: true
+
+      - name: Xenon — complexity gate
+        run: xenon bad_code.py --max-absolute B --max-modules A --max-average A
+        continue-on-error: true   # expected to fail on bad_code.py
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: analysis-results-${{ github.sha }}
+          path: results/

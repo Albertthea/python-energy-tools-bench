@@ -1,0 +1,9 @@
+ruff>=0.4.0
+pylint>=3.0.0
+perflint>=0.8.0
+radon>=6.0.0
+xenon>=0.9.0
+wily>=1.25.0
+codecarbon>=2.4.0
+pandas>=2.0.0
+numpy>=1.24.0

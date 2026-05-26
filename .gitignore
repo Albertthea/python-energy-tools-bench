@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Tool outputs (regenerate by running run_all.py)
+results/*.txt
+results/*.csv
+
+# Wily cache
+.wily/
+
+# SonarQube
+.scannerwork/
+
+# Env
+.env
+*.env
