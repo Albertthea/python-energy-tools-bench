@@ -1,4 +1,4 @@
-name: Green code analysis
+name: Python code analysis
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
 jobs:
   static-analysis:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -18,30 +19,111 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install ruff pylint perflint radon xenon
 
-      - name: Ruff — PERF + FURB
-        run: ruff check bad_code.py --select PERF,FURB
-        continue-on-error: true   # we EXPECT failures on bad_code.py
+      - name: Create results directory
+        run: mkdir -p results
 
-      - name: Pylint + perflint
-        run: pylint bad_code.py --load-plugins perflint --rcfile config/.pylintrc
-        continue-on-error: true
+      - name: Ruff — PERF + FURB rules
+        run: |
+          echo "## Ruff — PERF + FURB rules" > results/ruff.txt
+          echo '```' >> results/ruff.txt
+          ruff check bad_code.py --select PERF,FURB --output-format text >> results/ruff.txt 2>&1 || true
+          echo '```' >> results/ruff.txt
+          COUNT=$(ruff check bad_code.py --select PERF,FURB 2>&1 | grep -c "^bad_code" || echo 0)
+          echo "Total violations: $COUNT" >> results/ruff.txt
+
+      - name: Pylint — energy-relevant rules only
+        run: |
+          echo "## Pylint — energy-relevant rules (C0200, R1702, R0913, R0914, W0612)" > results/pylint.txt
+          echo '```' >> results/pylint.txt
+          pylint bad_code.py \
+            --max-args=5 --max-locals=10 --max-branches=7 --max-nested-blocks=4 \
+            --disable=all \
+            --enable=C0200,R1702,R0913,R0914,W0612 \
+            >> results/pylint.txt 2>&1 || true
+          echo '```' >> results/pylint.txt
+
+      - name: perflint — W84xx rules
+        run: |
+          echo "## perflint — W8401 to W8407" > results/perflint.txt
+          echo '```' >> results/perflint.txt
+          pylint bad_code.py \
+            --load-plugins perflint \
+            --disable=all \
+            --enable=W8401,W8402,W8403,W8404,W8405,W8406,W8407 \
+            >> results/perflint.txt 2>&1 || true
+          echo '```' >> results/perflint.txt
 
       - name: Radon — cyclomatic complexity
         run: |
-          radon cc bad_code.py -s -a
-          radon mi bad_code.py -s
-          radon hal bad_code.py
-        continue-on-error: true
+          echo "## Radon — Cyclomatic Complexity" > results/radon_cc.txt
+          echo "Ranks: A (1-5) B (6-10) C (11-15) D (16-20) E (21-25) F (26+)" >> results/radon_cc.txt
+          echo '```' >> results/radon_cc.txt
+          radon cc bad_code.py -s -a --show-complexity >> results/radon_cc.txt 2>&1
+          echo '```' >> results/radon_cc.txt
 
-      - name: Xenon — complexity gate
-        run: xenon bad_code.py --max-absolute B --max-modules A --max-average A
-        continue-on-error: true   # expected to fail on bad_code.py
+      - name: Radon — maintainability index
+        run: |
+          echo "## Radon — Maintainability Index" > results/radon_mi.txt
+          echo "Ranks: A (100-20) B (19-10) C (9-0, unmaintainable)" >> results/radon_mi.txt
+          echo '```' >> results/radon_mi.txt
+          radon mi bad_code.py -s >> results/radon_mi.txt 2>&1
+          echo '```' >> results/radon_mi.txt
 
-      - name: Upload results
+      - name: Radon — Halstead metrics
+        run: |
+          echo "## Radon — Halstead Metrics" > results/radon_hal.txt
+          echo "Effort (E = Difficulty x Volume) is the key energy proxy" >> results/radon_hal.txt
+          echo '```' >> results/radon_hal.txt
+          radon hal bad_code.py >> results/radon_hal.txt 2>&1
+          echo '```' >> results/radon_hal.txt
+
+      - name: Xenon — CI complexity gate
+        run: |
+          echo "## Xenon — CI Complexity Gate" > results/xenon.txt
+          echo "Thresholds: --max-absolute B --max-modules A --max-average A" >> results/xenon.txt
+          echo "Expected: FAIL (bad_code.py is intentionally complex)" >> results/xenon.txt
+          echo '```' >> results/xenon.txt
+          xenon bad_code.py --max-absolute B --max-modules A --max-average A >> results/xenon.txt 2>&1 || true
+          echo '```' >> results/xenon.txt
+
+      - name: Assemble report.md
+        if: always()
+        run: |
+          echo "# python-energy-tools-bench — analysis report" > results/report.md
+          echo "" >> results/report.md
+          echo "**File analysed:** \`bad_code.py\`" >> results/report.md
+          echo "**Commit:** ${{ github.sha }}" >> results/report.md
+          echo "**Run:** #${{ github.run_number }}" >> results/report.md
+          echo "" >> results/report.md
+          echo "> Violations are expected — bad_code.py is intentionally written with every anti-pattern." >> results/report.md
+          echo "" >> results/report.md
+          for f in results/ruff.txt results/pylint.txt results/perflint.txt results/radon_cc.txt results/radon_mi.txt results/radon_hal.txt results/xenon.txt; do
+            echo "---" >> results/report.md
+            cat "$f" >> results/report.md
+            echo "" >> results/report.md
+          done
+          echo "---" >> results/report.md
+          echo "## Tools not run in CI" >> results/report.md
+          echo "| Tool | Reason |" >> results/report.md
+          echo "|------|--------|" >> results/report.md
+          echo "| Wily | Requires multiple git commits |" >> results/report.md
+          echo "| CodeCarbon | Runtime measurement only |" >> results/report.md
+          echo "| PyJoules | Linux + Intel RAPL hardware only |" >> results/report.md
+          echo "| EcoCode | Requires SonarQube server |" >> results/report.md
+          echo "| GreenCodeAnalyzer | Requires Anthropic API key |" >> results/report.md
+
+      - name: Print report to log
+        if: always()
+        run: cat results/report.md
+
+      - name: Upload report artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: analysis-results-${{ github.sha }}
+          name: analysis-report-${{ github.run_number }}
           path: results/
+          retention-days: 30
