@@ -30,7 +30,7 @@ jobs:
         run: |
           echo "## Ruff — PERF + FURB rules" > results/ruff.txt
           echo '```' >> results/ruff.txt
-          ruff check bad_code.py --select PERF,FURB --output-format text >> results/ruff.txt 2>&1 || true
+          ruff check bad_code.py --select PERF,FURB --output-format concise >> results/ruff.txt 2>&1 || true
           echo '```' >> results/ruff.txt
           COUNT=$(ruff check bad_code.py --select PERF,FURB 2>&1 | grep -c "^bad_code" || echo 0)
           echo "Total violations: $COUNT" >> results/ruff.txt
@@ -53,7 +53,7 @@ jobs:
           pylint bad_code.py \
             --load-plugins perflint \
             --disable=all \
-            --enable=W8401,W8402,W8403,W8404,W8405,W8406,W8407 \
+            --enable=W8401,W8402,W8403 \
             >> results/perflint.txt 2>&1 || true
           echo '```' >> results/perflint.txt
 
