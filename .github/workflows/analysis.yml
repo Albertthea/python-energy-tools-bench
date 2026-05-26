@@ -32,7 +32,7 @@ jobs:
           echo '```' >> results/ruff.txt
           ruff check bad_code.py --select PERF,FURB --output-format concise >> results/ruff.txt 2>&1 || true
           echo '```' >> results/ruff.txt
-          COUNT=$(ruff check bad_code.py --select PERF,FURB 2>&1 | grep -c "^bad_code" || echo 0)
+          COUNT=$(ruff check bad_code.py --select PERF,FURB 2>&1 | grep -c "PERF\|FURB" || echo 0)
           echo "Total violations: $COUNT" >> results/ruff.txt
 
       - name: Pylint — energy-relevant rules only
